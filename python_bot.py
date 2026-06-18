@@ -4,8 +4,24 @@ import config
 from database.db_manager import init_db, add_user, add_coins
 from games.checkers_logic import create_board, is_valid_move, check_win, EMPTY_WHITE
 
+# --- КУСОЧЕК ДЛЯ ОБМАНА RENDER (ПОРТ-СЕРВЕР) ---
+import threading
+import http.server
+import socketserver
+import os
+
+def run_dummy_server():
+    handler = http.server.SimpleHTTPRequestHandler
+    port = int(os.environ.get("PORT", 8000))
+    with socketserver.TCPServer(("", port), handler) as httpd:
+        httpd.serve_forever()
+
+# Запускаем сервер в фоновом потоке, чтобы Render видел открытый порт
+threading.Thread(target=run_dummy_server, daemon=True).start()
+# -----------------------------------------------
+
 bot = telebot.TeleBot(config.TOKEN)
-active_games = {} # Храним игры в памяти: {chat_id: {board, turn, selected}}
+active_games = {}
 
 @bot.message_handler(commands=['start'])
 def start(message):
@@ -20,20 +36,18 @@ def start_checkers(message):
     active_games[chat_id] = {
         'board': create_board(),
         'turn': 'white',
-        'selected': None # Координаты выбранной шашки (row, col)
+        'selected': None
     }
     bot.send_message(chat_id, "Игра началась! Ход Белых (⚪).\nНажми на шашку, чтобы выбрать её.", 
                      reply_markup=get_board_markup(chat_id))
 
 def get_board_markup(chat_id):
-    """Рисует доску из кнопок"""
     game = active_games[chat_id]
     board = game['board']
     markup = types.InlineKeyboardMarkup(row_width=8)
     buttons = []
     for r in range(8):
         for c in range(8):
-            # Если клетка выбрана для хода, пометим её точкой
             text = board[r][c]
             if game['selected'] == (r, c):
                 text = "✨"
@@ -50,7 +64,6 @@ def handle_click(call):
     r, c = int(r), int(c)
     game = active_games[chat_id]
     
-    # 1. Если еще ничего не выбрано — выбираем шашку
     if game['selected'] is None:
         if (game['turn'] == 'white' and game['board'][r][c] == "⚪") or \
            (game['turn'] == 'black' and game['board'][r][c] == "🔴"):
@@ -59,32 +72,26 @@ def handle_click(call):
         else:
             bot.answer_callback_query(call.id, "Сейчас не твой ход или клетка пустая!")
             
-    # 2. Если шашка уже выбрана — делаем ход
     else:
         from_r, from_c = game['selected']
         
-        # Если кликнули на ту же шашку — отменяем выбор
         if (from_r, from_c) == (r, c):
             game['selected'] = None
             bot.edit_message_reply_markup(chat_id, call.message.message_id, reply_markup=get_board_markup(chat_id))
             return
             
-        # Проверяем правила хода
         if is_valid_move(game['board'], from_r, from_c, r, c, game['turn']):
-            # Двигаем фигуру
             game['board'][r][c] = game['board'][from_r][from_c]
             game['board'][from_r][from_c] = "⬛"
             game['selected'] = None
             
-            # Проверяем победу
             winner = check_win(game['board'])
             if winner:
-                bot.send_message(chat_id, f"🎉 Победили {''Белые'' if winner == ''white'' else ''Черные''}! Вы получили 10 монет!")
-                add_coins(call.from_user.id, 10) # Начисляем монеты в базу!
+                bot.send_message(chat_id, f"🎉 Победили {'Белые' if winner == 'white' else 'Черные'}! Вы получили 10 монет!")
+                add_coins(call.from_user.id, 10)
                 del active_games[chat_id]
                 return
                 
-            # Передаем ход
             game['turn'] = 'black' if game['turn'] == 'white' else 'white'
             turn_emoji = "⚪" if game['turn'] == 'white' else "🔴"
             
