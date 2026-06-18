@@ -3,33 +3,33 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Премиум Шашки</title>
+    <title>Премиум Шашки с Таймером</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         body {
             margin: 0; background: #1e272e; color: white;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
-            height: 100vh; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; user-select: none;
+            height: 100vh; font-family: 'Segoe UI', sans-serif; user-select: none;
         }
-        #score-board {
-            display: flex; gap: 20px; font-size: 16px; margin-bottom: 10px; background: rgba(0,0,0,0.4); padding: 8px 16px; border-radius: 20px;
+        #top-bar {
+            display: flex; justify-content: space-between; width: 90vw; max-width: 420px; margin-bottom: 10px;
         }
-        #status { font-size: 18px; margin-bottom: 15px; font-weight: bold; text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
+        .info-panel { background: rgba(0,0,0,0.4); padding: 6px 12px; border-radius: 12px; font-size: 14px; text-align: center; min-width: 80px; }
+        .active-timer { background: #27ae60 !important; animation: pulse-time 1s infinite alternate; }
+        @keyframes pulse-time { from { opacity: 0.8; } to { opacity: 1; } }
         
-        /* Контейнер доски с разметкой */
+        #status { font-size: 18px; margin-bottom: 10px; font-weight: bold; text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
+        
         .board-wrapper {
-            display: grid;
-            grid-template-columns: 30px 1fr 30px;
-            grid-template-rows: 30px 1fr 30px;
+            display: grid; grid-template-columns: 25px 1fr 25px; grid-template-rows: 25px 1fr 25px;
             width: 92vw; height: 92vw; max-width: 420px; max-height: 420px;
             background: #2c3e50; border-radius: 8px; padding: 5px; box-shadow: 0 12px 30px rgba(0,0,0,0.7);
         }
-        .labels-row { grid-column: 2; display: flex; justify-content: space-around; align-items: center; font-weight: bold; color: #bdc3c7; }
-        .labels-col { display: flex; flex-direction: column; justify-content: space-around; align-items: center; font-weight: bold; color: #bdc3c7; }
+        .labels-row { grid-column: 2; display: flex; justify-content: space-around; align-items: center; font-weight: bold; color: #bdc3c7; font-size: 12px; }
+        .labels-col { display: flex; flex-direction: column; justify-content: space-around; align-items: center; font-weight: bold; color: #bdc3c7; font-size: 12px; }
         
         #board {
-            grid-column: 2; grid-row: 2;
-            display: grid; grid-template-columns: repeat(8, 1fr);
+            grid-column: 2; grid-row: 2; display: grid; grid-template-columns: repeat(8, 1fr);
             background-image: url('https://images.unsplash.com/photo-1529699211952-734e80c4d42b?q=80&w=500');
             background-size: cover; border: 2px solid #111;
         }
@@ -38,98 +38,143 @@
         .light { background-color: rgba(243, 226, 199, 0.85); }
         
         .piece {
-            width: 84%; height: 84%; border-radius: 50%;
-            cursor: pointer; transition: transform 0.15s, box-shadow 0.15s;
+            width: 84%; height: 84%; border-radius: 50%; cursor: pointer; position: relative;
             background-size: cover; background-position: center;
             box-shadow: 0 6px 10px rgba(0,0,0,0.6), inset 0 -4px 6px rgba(0,0,0,0.4);
         }
         .white-piece { border: 1px solid #fff; }
-        /* Теперь обводка для черных шашек более контрастная */
         .black-piece { border: 1px solid #444; }
+        
+        /* Визуальное оформление Дамки */
+        .king::after {
+            content: "👑"; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 20px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.8));
+        }
         
         .selected { transform: scale(1.1); box-shadow: 0 0 15px #f1c40f, inset 0 -4px 6px rgba(0,0,0,0.4) !important; }
         .must-hit { animation: pulse 1.5s infinite; }
-        @keyframes pulse {
-            0% { box-shadow: 0 0 5px #e74c3c; }
-            50% { box-shadow: 0 0 18px #e74c3c; }
-            100% { box-shadow: 0 0 5px #e74c3c; }
-        }
+        @keyframes pulse { 0% { box-shadow: 0 0 5px #e74c3c; } 50% { box-shadow: 0 0 18px #e74c3c; } 100% { box-shadow: 0 0 5px #e74c3c; } }
     </style>
 </head>
 <body>
 
-    <div id="score-board">
-        <div>Съедено ⚪: <span id="white-captured">0</span>/12</div>
-        <div>Съедено ⚫: <span id="black-captured">0</span>/12</div>
+    <div id="top-bar">
+        <div class="info-panel" id="white-panel">Белые ⚪<br><span id="white-time">15:00</span></div>
+        <div class="info-panel">Съедено<br>⚪: <span id="white-captured">0</span> | ⚫: <span id="black-captured">0</span></div>
+        <div class="info-panel" id="black-panel">Черные ⚫<br><span id="black-time">15:00</span></div>
     </div>
+    
     <div id="status">Ход Белых</div>
 
     <div class="board-wrapper">
         <div class="labels-row"><div>A</div><div>B</div><div>C</div><div>D</div><div>E</div><div>F</div><div>G</div><div>H</div></div>
         <div class="labels-col" style="grid-row: 2; grid-column: 1;"><div>8</div><div>7</div><div>6</div><div>5</div><div>4</div><div>3</div><div>2</div><div>1</div></div>
-        
         <div id="board"></div>
-        
         <div class="labels-col" style="grid-row: 2; grid-column: 3;"><div>8</div><div>7</div><div>6</div><div>5</div><div>4</div><div>3</div><div>2</div><div>1</div></div>
         <div class="labels-row" style="grid-row: 3;"><div>A</div><div>B</div><div>C</div><div>D</div><div>E</div><div>F</div><div>G</div><div>H</div></div>
     </div>
 
     <script>
-        // === НАСТРОЙКА ТВОИХ ФОТО ДЛЯ ШАШЕК И ДОСКИ ===
         const URL_WHITE_PIECE = 'https://images.unsplash.com/photo-1611195974226-a6a9be9dd763?q=80&w=100'; 
-        // Здесь мы заменили яркое красное фото на текстуру стильного темного дерева/камня
         const URL_BLACK_PIECE = 'https://images.unsplash.com/photo-1510218830377-1e93e58416c4?q=80&w=100'; 
 
         const tg = window.Telegram.WebApp;
         tg.expand();
 
+        // Извлекаем время партии из параметров ссылки (по умолчанию 15 минут)
+        const urlParams = new URLSearchParams(window.location.search);
+        let gameMinutes = parseInt(urlParams.get('time')) || 15;
+        
         let turn = 'white';
         let selectedPiece = null;
         let whiteCaptured = 0;
         let blackCaptured = 0;
         let mustHitPieces = []; 
-        
-        let boardState = [
-            ['', 'B', '', 'B', '', 'B', '', 'B'],
-            ['B', '', 'B', '', 'B', '', 'B', ''],
-            ['', 'B', '', 'B', '', 'B', '', 'B'],
-            ['', '', '', '', '', '', '', ''],
-            ['', '', '', '', '', '', '', ''],
-            ['W', '', 'W', '', 'W', '', 'W', ''],
-            ['', 'W', '', 'W', '', 'W', '', 'W'],
-            ['W', '', 'W', '', 'W', '', 'W', '']
-        ];
+        let gameActive = true;
 
-        const boardEl = document.getElementById('board');
-        const statusEl = document.getElementById('status');
+        let whiteTime = gameMinutes * 60;
+        let blackTime = gameMinutes * 60;
+        
+        // Каждая клетка теперь хранит объект: {type: 'W'/'B'/'', isKing: false/true}
+        let boardState = Array(8).fill(null).map(() => Array(8).fill(null).map(() => ({type: '', isKing: false})));
+        
+        // Расставляем начальные фигуры
+        for(let r=0; r<8; r++) {
+            for(let c=0; c<8; c++) {
+                if((r+c)%2 === 1) {
+                    if(r < 3) boardState[r][c] = {type: 'B', isKing: false};
+                    else if(r > 4) boardState[r][c] = {type: 'W', isKing: false};
+                }
+            }
+        }
+
+        // Таймер обратного отсчета
+        setInterval(() => {
+            if (!gameActive) return;
+            if (turn === 'white') {
+                whiteTime--;
+                if(whiteTime <= 0) endGame('black', 'Время вышло! Победили Черные.');
+            } else {
+                blackTime--;
+                if(blackTime <= 0) endGame('white', 'Время вышло! Победили Белые.');
+            }
+            updateTimerDisplay();
+        }, 1000);
+
+        function updateTimerDisplay() {
+            const formatTime = (sec) => {
+                let m = Math.floor(sec / 60); let s = sec % 60;
+                return `${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+            };
+            document.getElementById('white-time').innerText = formatTime(whiteTime);
+            document.getElementById('black-time').innerText = formatTime(blackTime);
+            
+            document.getElementById('white-panel').className = `info-panel ${turn==='white'?'active-timer':''}`;
+            document.getElementById('black-panel').className = `info-panel ${turn==='black'?'active-timer':''}`;
+        }
 
         function checkMustHit() {
             mustHitPieces = [];
             const currentType = turn === 'white' ? 'W' : 'B';
-            const enemyType = turn === 'white' ? 'B' : 'W';
-
             for (let r = 0; r < 8; r++) {
                 for (let c = 0; c < 8; c++) {
-                    if (boardState[r][c] === currentType) {
-                        if (canCapture(r, c, enemyType)) {
-                            mustHitPieces.push({ r, c });
-                        }
+                    if (boardState[r][c].type === currentType && canCapture(r, c)) {
+                        mustHitPieces.push({ r, c });
                     }
                 }
             }
         }
 
-        function canCapture(r, c, enemyType) {
-            const directions = [[-2, -2], [-2, 2], [2, -2], [2, 2]];
-            for (let d of directions) {
-                const targetR = r + d[0];
-                const targetC = c + d[1];
-                const midR = r + d[0]/2;
-                const midC = c + d[1]/2;
+        function canCapture(r, c) {
+            const piece = boardState[r][c];
+            const enemyType = piece.type === 'W' ? 'B' : 'W';
+            const dirs = [[-1,-1], [-1,1], [1,-1], [1,1]];
 
-                if (targetR >= 0 && targetR < 8 && targetC >= 0 && targetC < 8) {
-                    if (boardState[midR][midC] === enemyType && boardState[targetR][targetC] === '') {
-                        return true;
+            if (piece.isKing) {
+                // Логика взятия для дамки (на всю диагональ)
+                for (let d of dirs) {
+                    let step = 1; let foundEnemy = null;
+                    while (true) {
+                        let nr = r + d[0]*step; let nc = c + d[1]*step;
+                        if (nr<0||nr>=8||nc<0||nc>=8) break;
+                        let target = boardState[nr][nc];
+                        if (target.type === piece.type) break;
+                        if (target.type === enemyType) {
+                            if (foundEnemy) break; // Две фигуры подряд бить нельзя
+                            foundEnemy = {r: nr, c: nc};
+                        } else if (target.type === '') {
+                            if (foundEnemy) return true;
+                        }
+                        step++;
+                    }
+                }
+            } else {
+                // Обычное взятие
+                for (let d of dirs) {
+                    let midR = r + d[0]; let midC = c + d[1];
+                    let endR = r + d[0]*2; let endC = c + d[1]*2;
+                    if (endR>=0 && endR<8 && endC>=0 && endC<8) {
+                        if (boardState[midR][midC].type === enemyType && boardState[endR][endC].type === '') return true;
                     }
                 }
             }
@@ -137,35 +182,38 @@
         }
 
         function drawBoard() {
+            const boardEl = document.getElementById('board');
             boardEl.innerHTML = '';
-            checkMustHit();
+            if (gameActive) checkMustHit();
 
             for (let r = 0; r < 8; r++) {
                 for (let c = 0; c < 8; c++) {
                     const cell = document.createElement('div');
                     cell.className = `cell ${(r + c) % 2 === 0 ? 'light' : 'dark'}`;
 
-                    const type = boardState[r][c];
-                    if (type) {
+                    const cellData = boardState[r][c];
+                    if (cellData.type) {
                         const piece = document.createElement('div');
-                        piece.className = `piece ${type === 'W' ? 'white-piece' : 'black-piece'}`;
+                        piece.className = `piece ${cellData.type === 'W' ? 'white-piece' : 'black-piece'}`;
+                        if (cellData.isKing) piece.classList.add('king');
                         
-                        piece.style.backgroundImage = `url(${type === 'W' ? URL_WHITE_PIECE : URL_BLACK_PIECE})`;
+                        piece.style.backgroundImage = `url(${cellData.type === 'W' ? URL_WHITE_PIECE : URL_BLACK_PIECE})`;
 
                         const isObligated = mustHitPieces.some(p => p.r === r && p.c === c);
                         if (isObligated) piece.classList.add('must-hit');
-
-                        if (selectedPiece && selectedPiece.row === r && selectedPiece.col === c) {
-                            piece.classList.add('selected');
-                        }
+                        if (selectedPiece && selectedPiece.row === r && selectedPiece.col === c) piece.classList.add('selected');
 
                         piece.addEventListener('click', (e) => {
                             e.stopPropagation();
+                            if (!gameActive) return;
                             if (mustHitPieces.length > 0 && !isObligated) {
                                 alert("Обязательно нужно бить подсвеченную шашку!");
                                 return;
                             }
-                            handlePieceClick(r, c);
+                            if ((turn === 'white' && cellData.type === 'W') || (turn === 'black' && cellData.type === 'B')) {
+                                selectedPiece = { row: r, col: c };
+                                drawBoard();
+                            }
                         });
                         cell.appendChild(piece);
                     }
@@ -174,67 +222,89 @@
                     boardEl.appendChild(cell);
                 }
             }
-            
             document.getElementById('white-captured').innerText = whiteCaptured;
             document.getElementById('black-captured').innerText = blackCaptured;
-        }
-
-        function handlePieceClick(r, c) {
-            const p = boardState[r][c];
-            if ((turn === 'white' && p === 'W') || (turn === 'black' && p === 'B')) {
-                selectedPiece = { row: r, col: c };
-                drawBoard();
-            }
+            updateTimerDisplay();
         }
 
         function handleCellClick(r, c) {
-            if (!selectedPiece) return;
+            if (!selectedPiece || !gameActive) return;
             
             const fromR = selectedPiece.row;
             const fromC = selectedPiece.col;
+            const pData = boardState[fromR][fromC];
             const rowDiff = r - fromR;
             const colDiff = Math.abs(c - fromC);
             
-            if (boardState[r][c] === '' && (r + c) % 2 !== 0) {
-                if (mustHitPieces.length > 0 && Math.abs(rowDiff) !== 2) {
-                    alert("Ход невозможен! Вы обязаны бить фигуру соперника.");
-                    return;
-                }
+            if (boardState[r][c].type !== '' || (r + c) % 2 === 0) return;
 
-                if (mustHitPieces.length === 0 && ((turn === 'white' && rowDiff === -1 && colDiff === 1) || (turn === 'black' && rowDiff === 1 && colDiff === 1))) {
-                    boardState[r][c] = boardState[fromR][fromC];
-                    boardState[fromR][fromC] = '';
-                    endTurn();
-                }
-                else if (Math.abs(rowDiff) === 2 && colDiff === 2) {
-                    const midR = (fromR + r) / 2;
-                    const midC = (fromC + c) / 2;
-                    const midPiece = boardState[midR][midC];
-                    const enemyType = turn === 'white' ? 'B' : 'W';
+            // ЕСЛИ ХОДИТ ДАМКА
+            if (pData.isKing) {
+                if (Math.abs(rowDiff) === colDiff) {
+                    let dirR = rowDiff / Math.abs(rowDiff);
+                    let dirC = (c - fromC) / colDiff;
+                    let step = 1; let enemies = [];
                     
-                    if (midPiece === enemyType) {
-                        boardState[midR][midC] = '';
-                        boardState[r][c] = boardState[fromR][fromC];
-                        boardState[fromR][fromC] = '';
-                        
+                    while (step < colDiff) {
+                        let checkR = fromR + dirR*step;
+                        let checkC = fromC + dirC*step;
+                        if (boardState[checkR][checkC].type !== '') enemies.push({r: checkR, c: checkC});
+                        step++;
+                    }
+
+                    if (enemies.length === 0 && mustHitPieces.length === 0) {
+                        //Простой ход дамки
+                        movePiece(fromR, fromC, r, c);
+                        endTurn();
+                    } else if (enemies.length === 1 && boardState[enemies[0].r][enemies[0].c].type !== pData.type) {
+                        //Взятие дамкой
+                        boardState[enemies[0].r][enemies[0].c] = {type: '', isKing: false};
                         if (turn === 'white') blackCaptured++; else whiteCaptured++;
+                        movePiece(fromR, fromC, r, c);
                         
-                        if (canCapture(r, c, enemyType)) {
-                            selectedPiece = { row: r, col: c };
-                            drawBoard();
-                        } else {
-                            checkGameOver();
-                            endTurn();
-                        }
+                        if (canCapture(r, c)) { selectedPiece = { row: r, col: c }; drawBoard(); }
+                        else { checkGameOver(); endTurn(); }
                     }
                 }
+                return;
             }
+
+            // ЕСЛИ ХОДИТ ОБЫЧНАЯ ШАШКА
+            if (mustHitPieces.length > 0 && Math.abs(rowDiff) !== 2) return;
+
+            if (mustHitPieces.length === 0 && ((turn === 'white' && rowDiff === -1 && colDiff === 1) || (turn === 'black' && rowDiff === 1 && colDiff === 1))) {
+                movePiece(fromR, fromC, r, c);
+                endTurn();
+            }
+            else if (Math.abs(rowDiff) === 2 && colDiff === 2) {
+                const midR = (fromR + r) / 2;
+                const midC = (fromC + c) / 2;
+                const enemyType = turn === 'white' ? 'B' : 'W';
+                
+                if (boardState[midR][midC].type === enemyType) {
+                    boardState[midR][midC] = {type: '', isKing: false};
+                    if (turn === 'white') blackCaptured++; else whiteCaptured++;
+                    movePiece(fromR, fromC, r, c);
+                    
+                    if (canCapture(r, c)) { selectedPiece = { row: r, col: c }; drawBoard(); }
+                    else { checkGameOver(); endTurn(); }
+                }
+            }
+        }
+
+        function movePiece(fromR, fromC, r, c) {
+            boardState[r][c] = boardState[fromR][fromC];
+            boardState[fromR][fromC] = {type: '', isKing: false};
+            
+            // Превращение в дамку при достижении края
+            if (boardState[r][c].type === 'W' && r === 0) boardState[r][c].isKing = true;
+            if (boardState[r][c].type === 'B' && r === 7) boardState[r][c].isKing = true;
         }
 
         function endTurn() {
             selectedPiece = null;
             turn = turn === 'white' ? 'black' : 'white';
-            statusEl.innerText = turn === 'white' ? 'Ход Белых' : 'Ход Черных';
+            document.getElementById('status').innerText = turn === 'white' ? 'Ход Белых' : 'Ход Черных';
             drawBoard();
         }
 
@@ -242,15 +312,19 @@
             let w = 0, b = 0;
             for(let r=0; r<8; r++) {
                 for(let c=0; c<8; c++) {
-                    if(boardState[r][c] === 'W') w++;
-                    if(boardState[r][c] === 'B') b++;
+                    if(boardState[r][c].type === 'W') w++;
+                    if(boardState[r][c].type === 'B') b++;
                 }
             }
-            if (w === 0 || b === 0) {
-                alert("Победа!");
-                tg.sendData(JSON.stringify({ winner: w === 0 ? 'black' : 'white' }));
-                tg.close();
-            }
+            if (w === 0) endGame('black', 'Черные съели все шашки!');
+            if (b === 0) endGame('white', 'Белые съели все шашки!');
+        }
+
+        function endGame(winner, msg) {
+            gameActive = false;
+            alert(msg);
+            tg.sendData(JSON.stringify({ winner: winner }));
+            tg.close();
         }
 
         drawBoard();
