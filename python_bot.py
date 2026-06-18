@@ -5,11 +5,11 @@ import threading
 import http.server
 import socketserver
 import os
-from database.db_manager import init_db, add_user, add_coins
+from database.db_manager import init_db, add_user, add_coins, get_top_users
 
 # --- СЕРВЕР ДЛЯ СДАЧИ WEB APP И ОТВЕТА RENDER ---
 class MyHandler(http.server.SimpleHTTPRequestHandler):
-    def log_message(self, format, *args): return # Отключаем лишние логи
+    def log_message(self, format, *args): return
 
 def run_dummy_server():
     port = int(os.environ.get("PORT", 8000))
@@ -24,17 +24,35 @@ bot = telebot.TeleBot(config.TOKEN)
 def start(message):
     add_user(message.from_user.id, message.from_user.first_name)
     
-    # Твоя ссылка на приложение на Render
     WEB_APP_URL = f"https://{os.environ.get('RENDER_EXTERNAL_HOSTNAME', 'game-bot-ceua.onrender.com')}"
     
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    # Создаем кнопку, которая открывает полноценное окно прямо внутри Telegram
     web_app_info = types.WebAppInfo(url=WEB_APP_URL)
     markup.add(types.KeyboardButton(text="🎮 Открыть Шашки", web_app=web_app_info))
     
-    bot.send_message(message.chat.id, "Привет! Нажми на кнопку ниже, чтобы открыть настоящую игру:", reply_markup=markup)
+    bot.send_message(message.chat.id, 
+                     "Привет! Нажми на кнопку ниже, чтобы запустить игру.\n\n"
+                     "📌 Доступные команды:\n"
+                     "🏆 /top — Список лидеров по монетам", 
+                     reply_markup=markup)
 
-# Слушаем, когда игра пришлет данные о победителе
+# Новая команда для вывода таблицы лидеров
+@bot.message_handler(commands=['top'])
+def top_leaderboard(message):
+    top_players = get_top_users()
+    if not top_players:
+        bot.send_message(message.chat.id, "🏆 Таблица лидеров пока пуста. Будь первым!")
+        return
+        
+    text = "🏆 **ТОП-10 ИГРОКОВ ПО МОНЕТАМ:**\n\n"
+    for index, player in enumerate(top_players, 1):
+        name, coins = player
+        # Добавим красивые медали для топ-3
+        medal = "🥇" if index == 1 else "🥈" if index == 2 else "🥉" if index == 3 else f"{index}."
+        text += f"{medal} {name} — {coins} 🪙\n"
+        
+    bot.send_message(message.chat.id, text, parse_mode="Markdown")
+
 @bot.message_handler(content_types=['web_app_data'])
 def web_app_data_handler(message):
     import json
@@ -42,7 +60,7 @@ def web_app_data_handler(message):
     winner = data.get("winner")
     
     if winner:
-        bot.send_message(message.chat.id, f"🎉 Игра завершена! Вы отлично сыграли. Зачислено +10 монет.")
+        bot.send_message(message.chat.id, "🎉 Игра завершена! Вы отлично сыграли. Баланс пополнен на +10 монет.")
         add_coins(message.from_user.id, 10)
 
 if __name__ == '__main__':
