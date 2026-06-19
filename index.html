@@ -7,53 +7,73 @@
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         body {
-            margin: 0; background: #1e272e; color: white;
+            margin: 0; background: #161d22; color: white;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
             height: 100vh; font-family: 'Segoe UI', sans-serif; user-select: none;
         }
         #top-bar {
-            display: flex; justify-content: space-between; width: 90vw; max-width: 420px; margin-bottom: 10px;
+            display: flex; justify-content: space-between; width: 90vw; max-width: 400px; margin-bottom: 15px;
         }
-        .info-panel { background: rgba(0,0,0,0.4); padding: 6px 12px; border-radius: 12px; font-size: 14px; text-align: center; min-width: 80px; }
-        .active-timer { background: #27ae60 !important; animation: pulse-time 1s infinite alternate; }
+        .info-panel { 
+            background: rgba(0,0,0,0.5); padding: 8px 14px; border-radius: 10px; 
+            font-size: 14px; text-align: center; min-width: 80px; 
+            box-shadow: inset 0 1px 3px rgba(255,255,255,0.1); 
+        }
+        .active-timer { background: #2e7d32 !important; animation: pulse-time 1s infinite alternate; }
         @keyframes pulse-time { from { opacity: 0.8; } to { opacity: 1; } }
         
-        #status { font-size: 18px; margin-bottom: 10px; font-weight: bold; text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
+        #status { font-size: 18px; margin-bottom: 15px; font-weight: bold; text-shadow: 0 2px 4px rgba(0,0,0,0.5); letter-spacing: 0.5px; }
         
+        /* Реалистичное оформление деревянной цельной доски */
         .board-wrapper {
-            display: grid; grid-template-columns: 25px 1fr 25px; grid-template-rows: 25px 1fr 25px;
-            width: 92vw; height: 92vw; max-width: 420px; max-height: 420px;
-            background: #2c3e50; border-radius: 8px; padding: 5px; box-shadow: 0 12px 30px rgba(0,0,0,0.7);
+            display: grid; grid-template-columns: 20px 1fr 20px; grid-template-rows: 20px 1fr 20px;
+            width: 92vw; height: 92vw; max-width: 400px; max-height: 400px;
+            background: #2e3b4e; border-radius: 12px; padding: 8px; box-shadow: 0 16px 40px rgba(0,0,0,0.7);
+            border: 1px solid rgba(255,255,255,0.1);
         }
-        .labels-row { grid-column: 2; display: flex; justify-content: space-around; align-items: center; font-weight: bold; color: #bdc3c7; font-size: 12px; }
-        .labels-col { display: flex; flex-direction: column; justify-content: space-around; align-items: center; font-weight: bold; color: #bdc3c7; font-size: 12px; }
+        .labels-row { grid-column: 2; display: flex; justify-content: space-around; align-items: center; font-weight: bold; color: #94a3b8; font-size: 11px; }
+        .labels-col { display: flex; flex-direction: column; justify-content: space-around; align-items: center; font-weight: bold; color: #94a3b8; font-size: 11px; }
         
         #board {
             grid-column: 2; grid-row: 2; display: grid; grid-template-columns: repeat(8, 1fr);
-            background-image: url('https://images.unsplash.com/photo-1529699211952-734e80c4d42b?q=80&w=500');
-            background-size: cover; border: 2px solid #111;
+            border: 3px solid #1e293b; background-color: #1e293b; gap: 0; overflow: hidden; border-radius: 4px;
         }
         .cell { display: flex; align-items: center; justify-content: center; position: relative; }
-        .dark { background-color: rgba(141, 103, 72, 0.85); }
-        .light { background-color: rgba(243, 226, 199, 0.85); }
         
+        /* Цветовая гамма клеток как на профессиональных сайтах */
+        .dark { background-color: #b58863; }
+        .light { background-color: #f0d9b5; }
+        
+        /* Реалистичные объемные шашки без картинок */
         .piece {
-            width: 84%; height: 84%; border-radius: 50%; cursor: pointer; position: relative;
-            background-size: cover; background-position: center;
-            box-shadow: 0 6px 10px rgba(0,0,0,0.6), inset 0 -4px 6px rgba(0,0,0,0.4);
+            width: 82%; height: 82%; border-radius: 50%; cursor: pointer; position: relative;
+            transition: transform 0.2s, box-shadow 0.2s; z-index: 2;
         }
-        .white-piece { border: 1px solid #fff; }
-        .black-piece { border: 1px solid #444; }
         
-        /* Визуальное оформление Дамки */
+        /* Чистый белый цвет с глубоким градиентом */
+        .white-piece { 
+            background: radial-gradient(circle at 30% 30%, #ffffff 0%, #e2e8f0 75%, #cbd5e1 100%);
+            box-shadow: 0 5px 8px rgba(0,0,0,0.4), inset 0 -3px 4px rgba(0,0,0,0.2);
+            border: 1px solid #b1b9c4;
+        }
+        
+        /* Стильный глубокий темный цвет */
+        .black-piece { 
+            background: radial-gradient(circle at 30% 30%, #475569 0%, #1e293b 70%, #0f172a 100%);
+            box-shadow: 0 5px 8px rgba(0,0,0,0.6), inset 0 -3px 5px rgba(0,0,0,0.6);
+            border: 1px solid #090d14;
+        }
+        
+        /* Корона для Дамки */
         .king::after {
             content: "👑"; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            font-size: 20px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.8));
+            font-size: 18px; filter: drop-shadow(0 2px 3px rgba(0,0,0,0.6));
         }
         
-        .selected { transform: scale(1.1); box-shadow: 0 0 15px #f1c40f, inset 0 -4px 6px rgba(0,0,0,0.4) !important; }
+        /* Эффект подсветки выбранной шашки */
+        .selected { transform: scale(1.08); box-shadow: 0 0 18px #f59e0b, inset 0 -2px 4px rgba(0,0,0,0.3) !important; z-index: 3; }
         .must-hit { animation: pulse 1.5s infinite; }
-        @keyframes pulse { 0% { box-shadow: 0 0 5px #e74c3c; } 50% { box-shadow: 0 0 18px #e74c3c; } 100% { box-shadow: 0 0 5px #e74c3c; } }
+        @keyframes pulse { 0% { box-shadow: 0 0 4px #ef4444; } 50% { box-shadow: 0 0 16px #ef4444; } 100% { box-shadow: 0 0 4px #ef4444; } }
     </style>
 </head>
 <body>
@@ -75,228 +95,249 @@
     </div>
 
     <script>
-        const URL_WHITE_PIECE = 'https://images.unsplash.com/photo-1611195974226-a6a9be9dd763?q=80&w=100'; 
-        const URL_BLACK_PIECE = 'https://images.unsplash.com/photo-1510218830377-1e93e58416c4?q=80&w=100'; 
-
         const tg = window.Telegram.WebApp;
         tg.expand();
 
-        // Извлекаем время партии из параметров ссылки (по умолчанию 15 минут)
+        // Чтение лимита времени из ссылки
         const urlParams = new URLSearchParams(window.location.search);
-        let gameMinutes = parseInt(urlParams.get('time')) || 15;
-        
-        let turn = 'white';
-        let selectedPiece = null;
-        let whiteCaptured = 0;
-        let blackCaptured = 0;
-        let mustHitPieces = []; 
-        let gameActive = true;
+        const gameMinutes = parseInt(urlParams.get('time')) || 15;
 
         let whiteTime = gameMinutes * 60;
         let blackTime = gameMinutes * 60;
-        
-        // Каждая клетка теперь хранит объект: {type: 'W'/'B'/'', isKing: false/true}
-        let boardState = Array(8).fill(null).map(() => Array(8).fill(null).map(() => ({type: '', isKing: false})));
-        
-        // Расставляем начальные фигуры
-        for(let r=0; r<8; r++) {
-            for(let c=0; c<8; c++) {
-                if((r+c)%2 === 1) {
-                    if(r < 3) boardState[r][c] = {type: 'B', isKing: false};
-                    else if(r > 4) boardState[r][c] = {type: 'W', isKing: false};
+        let turn = 'white'; // 'white' или 'black'
+        let timerInterval = null;
+        let gameActive = true;
+
+        let whiteCaptured = 0;
+        let blackCaptured = 0;
+
+        // Создание начального состояния доски
+        let boardState = [];
+        for (let r = 0; r < 8; r++) {
+            boardState[r] = [];
+            for (let c = 0; c < 8; c++) {
+                if ((r + c) % 2 === 1) {
+                    if (r < 3) boardState[r][c] = { type: 'B', isKing: false };
+                    else if (r > 4) boardState[r][c] = { type: 'W', isKing: false };
+                    else boardState[r][c] = { type: '', isKing: false };
+                } else {
+                    boardState[r][c] = { type: '', isKing: false };
                 }
             }
         }
 
-        // Таймер обратного отсчета
-        setInterval(() => {
-            if (!gameActive) return;
-            if (turn === 'white') {
-                whiteTime--;
-                if(whiteTime <= 0) endGame('black', 'Время вышло! Победили Черные.');
-            } else {
-                blackTime--;
-                if(blackTime <= 0) endGame('white', 'Время вышло! Победили Белые.');
-            }
-            updateTimerDisplay();
-        }, 1000);
+        let selectedPiece = null; // {r, c}
 
-        function updateTimerDisplay() {
-            const formatTime = (sec) => {
-                let m = Math.floor(sec / 60); let s = sec % 60;
-                return `${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
-            };
+        function formatTime(seconds) {
+            let m = Math.floor(seconds / 60);
+            let s = seconds % 60;
+            return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+        }
+
+        function updateTimersDisplay() {
             document.getElementById('white-time').innerText = formatTime(whiteTime);
             document.getElementById('black-time').innerText = formatTime(blackTime);
             
-            document.getElementById('white-panel').className = `info-panel ${turn==='white'?'active-timer':''}`;
-            document.getElementById('black-panel').className = `info-panel ${turn==='black'?'active-timer':''}`;
+            document.getElementById('white-panel').classList.remove('active-timer');
+            document.getElementById('black-panel').classList.remove('active-timer');
+            
+            if (gameActive) {
+                if (turn === 'white') document.getElementById('white-panel').classList.add('active-timer');
+                else document.getElementById('black-panel').classList.add('active-timer');
+            }
         }
 
-        function checkMustHit() {
-            mustHitPieces = [];
-            const currentType = turn === 'white' ? 'W' : 'B';
+        function startTimer() {
+            updateTimersDisplay();
+            timerInterval = setInterval(() => {
+                if (!gameActive) return;
+                if (turn === 'white') {
+                    whiteTime--;
+                    if (whiteTime <= 0) endGame('black', 'Время белых истекло! Победили Черные.');
+                } else {
+                    blackTime--;
+                    if (blackTime <= 0) endGame('white', 'Время черных истекло! Победили Белые.');
+                }
+                updateTimersDisplay();
+            }, 1000);
+        }
+
+        // Логика поиска обязательных ударов
+        function getMustHitPieces(color) {
+            let typeToFind = color === 'white' ? 'W' : 'B';
+            let pieces = [];
             for (let r = 0; r < 8; r++) {
                 for (let c = 0; c < 8; c++) {
-                    if (boardState[r][c].type === currentType && canCapture(r, c)) {
-                        mustHitPieces.push({ r, c });
+                    if (boardState[r][c].type === typeToFind) {
+                        let moves = getMovesForPiece(r, c);
+                        if (moves.some(m => m.isHit)) {
+                            pieces.push({r, c});
+                        }
                     }
                 }
             }
+            return pieces;
         }
 
-        function canCapture(r, c) {
-            const piece = boardState[r][c];
-            const enemyType = piece.type === 'W' ? 'B' : 'W';
-            const dirs = [[-1,-1], [-1,1], [1,-1], [1,1]];
+        function getMovesForPiece(r, c) {
+            let piece = boardState[r][c];
+            let moves = [];
+            if (!piece.type) return moves;
 
+            let directions = [];
             if (piece.isKing) {
-                // Логика взятия для дамки (на всю диагональ)
-                for (let d of dirs) {
-                    let step = 1; let foundEnemy = null;
-                    while (true) {
-                        let nr = r + d[0]*step; let nc = c + d[1]*step;
-                        if (nr<0||nr>=8||nc<0||nc>=8) break;
-                        let target = boardState[nr][nc];
-                        if (target.type === piece.type) break;
-                        if (target.type === enemyType) {
-                            if (foundEnemy) break; // Две фигуры подряд бить нельзя
-                            foundEnemy = {r: nr, c: nc};
-                        } else if (target.type === '') {
-                            if (foundEnemy) return true;
-                        }
-                        step++;
-                    }
-                }
+                directions = [[1,1], [1,-1], [-1,1], [-1,-1]];
             } else {
-                // Обычное взятие
-                for (let d of dirs) {
-                    let midR = r + d[0]; let midC = c + d[1];
-                    let endR = r + d[0]*2; let endC = c + d[1]*2;
-                    if (endR>=0 && endR<8 && endC>=0 && endC<8) {
-                        if (boardState[midR][midC].type === enemyType && boardState[endR][endC].type === '') return true;
-                    }
-                }
+                directions = piece.type === 'W' ? [[-1,1], [-1,-1]] : [[1,1], [1,-1]];
             }
-            return false;
+
+            // Обычные ходы и взятия для простых шашек
+            if (!piece.isKing) {
+                // Проверка обычных ходов
+                directions.forEach(d => {
+                    let nr = r + d[0], nc = c + d[1];
+                    if (nr >= 0 && nr < 8 && nc >= 0 && nc < 8) {
+                        if (boardState[nr][nc].type === '') {
+                            moves.push({ r: nr, c: nc, isHit: false });
+                        }
+                    }
+                });
+                // Проверка прыжков-взятий (работает во все 4 стороны)
+                let hitDirs = [[1,1], [1,-1], [-1,1], [-1,-1]];
+                hitDirs.forEach(d => {
+                    let enemyR = r + d[0], enemyC = c + d[1];
+                    let nextR = r + d[0]*2, nextC = c + d[1]*2;
+                    if (nextR >= 0 && nextR < 8 && nextC >= 0 && nextC < 8) {
+                        let midPiece = boardState[enemyR][enemyC];
+                        let targetPiece = boardState[nextR][nextC];
+                        if (midPiece.type && midPiece.type !== piece.type && targetPiece.type === '') {
+                            moves.push({ r: nextR, c: nextC, isHit: true, enemyR, enemyC });
+                        }
+                    }
+                });
+            } else {
+                // Логика дамки (ходит по всей диагонали)
+                directions.forEach(d => {
+                    let nr = r + d[0], nc = c + d[1];
+                    let enemyFound = null;
+                    while (nr >= 0 && nr < 8 && nc >= 0 && nc < 8) {
+                        let current = boardState[nr][nc];
+                        if (!enemyFound) {
+                            if (current.type === '') {
+                                moves.push({ r: nr, c: nc, isHit: false });
+                            } else if (current.type === piece.type) {
+                                break; 
+                            } else {
+                                enemyFound = { r: nr, c: nc };
+                            }
+                        } else {
+                            if (current.type === '') {
+                                moves.push({ r: nr, c: nc, isHit: true, enemyR: enemyFound.r, enemyC: enemyFound.c });
+                            } else {
+                                break; 
+                            }
+                        }
+                        nr += d[0]; nc += d[1];
+                    }
+                });
+            }
+            return moves;
         }
 
         function drawBoard() {
-            const boardEl = document.getElementById('board');
-            boardEl.innerHTML = '';
-            if (gameActive) checkMustHit();
+            const board = document.getElementById('board');
+            board.innerHTML = '';
+            
+            let mustHitPieces = getMustHitPieces(turn);
 
             for (let r = 0; r < 8; r++) {
                 for (let c = 0; c < 8; c++) {
                     const cell = document.createElement('div');
-                    cell.className = `cell ${(r + c) % 2 === 0 ? 'light' : 'dark'}`;
-
-                    const cellData = boardState[r][c];
-                    if (cellData.type) {
-                        const piece = document.createElement('div');
-                        piece.className = `piece ${cellData.type === 'W' ? 'white-piece' : 'black-piece'}`;
-                        if (cellData.isKing) piece.classList.add('king');
+                    cell.className = `cell ${(r + c) % 2 === 1 ? 'dark' : 'light'}`;
+                    
+                    let p = boardState[r][c];
+                    if (p.type) {
+                        const pieceDiv = document.createElement('div');
+                        pieceDiv.className = `piece ${p.type === 'W' ? 'white-piece' : 'black-piece'}`;
+                        if (p.isKing) pieceDiv.classList.add('king');
                         
-                        piece.style.backgroundImage = `url(${cellData.type === 'W' ? URL_WHITE_PIECE : URL_BLACK_PIECE})`;
+                        if (selectedPiece && selectedPiece.r === r && selectedPiece.c === c) {
+                            pieceDiv.classList.add('selected');
+                        }
 
-                        const isObligated = mustHitPieces.some(p => p.r === r && p.c === c);
-                        if (isObligated) piece.classList.add('must-hit');
-                        if (selectedPiece && selectedPiece.row === r && selectedPiece.col === c) piece.classList.add('selected');
+                        // Подсветка шашек, обязанную бить
+                        if (mustHitPieces.some(pos => pos.r === r && pos.c === c)) {
+                            pieceDiv.classList.add('must-hit');
+                        }
 
-                        piece.addEventListener('click', (e) => {
+                        pieceDiv.onclick = (e) => {
                             e.stopPropagation();
-                            if (!gameActive) return;
-                            if (mustHitPieces.length > 0 && !isObligated) {
-                                alert("Обязательно нужно бить подсвеченную шашку!");
-                                return;
-                            }
-                            if ((turn === 'white' && cellData.type === 'W') || (turn === 'black' && cellData.type === 'B')) {
-                                selectedPiece = { row: r, col: c };
-                                drawBoard();
-                            }
-                        });
-                        cell.appendChild(piece);
+                            handlePieceClick(r, c);
+                        };
+                        cell.appendChild(pieceDiv);
                     }
 
-                    cell.addEventListener('click', () => handleCellClick(r, c));
-                    boardEl.appendChild(cell);
+                    cell.onclick = () => handleCellClick(r, c);
+                    board.appendChild(cell);
                 }
             }
-            document.getElementById('white-captured').innerText = whiteCaptured;
-            document.getElementById('black-captured').innerText = blackCaptured;
-            updateTimerDisplay();
+        }
+
+        function handlePieceClick(r, c) {
+            if (!gameActive) return;
+            let p = boardState[r][c];
+            if ((turn === 'white' && p.type !== 'W') || (turn === 'black' && p.type !== 'B')) return;
+
+            let mustHitPieces = getMustHitPieces(turn);
+            if (mustHitPieces.length > 0) {
+                if (!mustHitPieces.some(pos => pos.r === r && pos.c === c)) {
+                    return; // Игрок обязан выбрать ту шашку, которая бьет
+                }
+            }
+
+            selectedPiece = { r, c };
+            drawBoard();
         }
 
         function handleCellClick(r, c) {
-            if (!selectedPiece || !gameActive) return;
+            if (!gameActive || !selectedPiece) return;
             
-            const fromR = selectedPiece.row;
-            const fromC = selectedPiece.col;
-            const pData = boardState[fromR][fromC];
-            const rowDiff = r - fromR;
-            const colDiff = Math.abs(c - fromC);
+            let moves = getMovesForPiece(selectedPiece.r, selectedPiece.c);
+            let mustHitPieces = getMustHitPieces(turn);
             
-            if (boardState[r][c].type !== '' || (r + c) % 2 === 0) return;
-
-            // ЕСЛИ ХОДИТ ДАМКА
-            if (pData.isKing) {
-                if (Math.abs(rowDiff) === colDiff) {
-                    let dirR = rowDiff / Math.abs(rowDiff);
-                    let dirC = (c - fromC) / colDiff;
-                    let step = 1; let enemies = [];
-                    
-                    while (step < colDiff) {
-                        let checkR = fromR + dirR*step;
-                        let checkC = fromC + dirC*step;
-                        if (boardState[checkR][checkC].type !== '') enemies.push({r: checkR, c: checkC});
-                        step++;
-                    }
-
-                    if (enemies.length === 0 && mustHitPieces.length === 0) {
-                        //Простой ход дамки
-                        movePiece(fromR, fromC, r, c);
-                        endTurn();
-                    } else if (enemies.length === 1 && boardState[enemies[0].r][enemies[0].c].type !== pData.type) {
-                        //Взятие дамкой
-                        boardState[enemies[0].r][enemies[0].c] = {type: '', isKing: false};
-                        if (turn === 'white') blackCaptured++; else whiteCaptured++;
-                        movePiece(fromR, fromC, r, c);
-                        
-                        if (canCapture(r, c)) { selectedPiece = { row: r, col: c }; drawBoard(); }
-                        else { checkGameOver(); endTurn(); }
-                    }
-                }
-                return;
+            if (mustHitPieces.length > 0) {
+                moves = moves.filter(m => m.isHit);
             }
 
-            // ЕСЛИ ХОДИТ ОБЫЧНАЯ ШАШКА
-            if (mustHitPieces.length > 0 && Math.abs(rowDiff) !== 2) return;
+            let validMove = moves.find(m => m.r === r && m.c === c);
 
-            if (mustHitPieces.length === 0 && ((turn === 'white' && rowDiff === -1 && colDiff === 1) || (turn === 'black' && rowDiff === 1 && colDiff === 1))) {
-                movePiece(fromR, fromC, r, c);
-                endTurn();
-            }
-            else if (Math.abs(rowDiff) === 2 && colDiff === 2) {
-                const midR = (fromR + r) / 2;
-                const midC = (fromC + c) / 2;
-                const enemyType = turn === 'white' ? 'B' : 'W';
-                
-                if (boardState[midR][midC].type === enemyType) {
-                    boardState[midR][midC] = {type: '', isKing: false};
-                    if (turn === 'white') blackCaptured++; else whiteCaptured++;
-                    movePiece(fromR, fromC, r, c);
-                    
-                    if (canCapture(r, c)) { selectedPiece = { row: r, col: c }; drawBoard(); }
-                    else { checkGameOver(); endTurn(); }
+            if (validMove) {
+                movePiece(selectedPiece.r, selectedPiece.c, r, c);
+
+                if (validMove.isHit) {
+                    boardState[validMove.enemyR][validMove.enemyC] = { type: '', isKing: false };
+                    if (turn === 'white') whiteCaptured++; else blackCaptured++;
+                    document.getElementById('white-captured').innerText = whiteCaptured;
+                    document.getElementById('black-captured').innerText = blackCaptured;
+
+                    // Серия ударов (мульти-взятие)
+                    let nextMoves = getMovesForPiece(r, c).filter(m => m.isHit);
+                    if (nextMoves.length > 0) {
+                        selectedPiece = { r, c };
+                        drawBoard();
+                        return; 
+                    }
                 }
+
+                checkGameOver();
+                if (gameActive) endTurn();
             }
         }
 
         function movePiece(fromR, fromC, r, c) {
             boardState[r][c] = boardState[fromR][fromC];
-            boardState[fromR][fromC] = {type: '', isKing: false};
+            boardState[fromR][fromC] = { type: '', isKing: false };
             
-            // Превращение в дамку при достижении края
             if (boardState[r][c].type === 'W' && r === 0) boardState[r][c].isKing = true;
             if (boardState[r][c].type === 'B' && r === 7) boardState[r][c].isKing = true;
         }
@@ -305,29 +346,42 @@
             selectedPiece = null;
             turn = turn === 'white' ? 'black' : 'white';
             document.getElementById('status').innerText = turn === 'white' ? 'Ход Белых' : 'Ход Черных';
+            updateTimersDisplay();
             drawBoard();
         }
 
         function checkGameOver() {
             let w = 0, b = 0;
-            for(let r=0; r<8; r++) {
-                for(let c=0; c<8; c++) {
-                    if(boardState[r][c].type === 'W') w++;
-                    if(boardState[r][c].type === 'B') b++;
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    if (boardState[r][c].type === 'W') w++;
+                    if (boardState[r][c].type === 'B') b++;
                 }
             }
             if (w === 0) endGame('black', 'Черные съели все шашки!');
             if (b === 0) endGame('white', 'Белые съели все шашки!');
         }
 
-        function endGame(winner, msg) {
+        function endGame(winner, reason) {
             gameActive = false;
-            alert(msg);
-            tg.sendData(JSON.stringify({ winner: winner }));
-            tg.close();
+            clearInterval(timerInterval);
+            document.getElementById('status').innerText = "Игра окончена!";
+            alert(reason);
+            
+            // Отправляем данные обратно в Telegram-бота
+            tg.sendData(JSON.stringify({
+                winner: winner,
+                reason: reason,
+                white_captured: whiteCaptured,
+                black_captured: blackCaptured
+            }));
+            
+            setTimeout(() => { tg.close(); }, 1500);
         }
 
+        // Запуск
         drawBoard();
+        startTimer();
     </script>
 </body>
 </html>
