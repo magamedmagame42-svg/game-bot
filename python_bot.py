@@ -5,7 +5,7 @@ import threading
 import http.server
 import socketserver
 import os
-from database.db_manager import init_db, add_user, add_coins, get_top_users
+from database.db_manager import init_db, add_user, add_coins, get_top_users, get_coins
 
 class MyHandler(http.server.SimpleHTTPRequestHandler):
     def log_message(self, format, *args): return
@@ -22,26 +22,30 @@ WEB_APP_URL = f"https://{os.environ.get('RENDER_EXTERNAL_HOSTNAME', 'game-bot-ce
 @bot.message_handler(commands=['start'])
 def start(message):
     add_user(message.from_user.id, message.from_user.first_name)
+    user_coins = get_coins(message.from_user.id)
     
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     markup.add(types.KeyboardButton("⚡ Быстрая игра (15 мин)"), types.KeyboardButton("⏳ Долгая партия (45 мин)"))
     markup.add(types.KeyboardButton("⚙️ Свое время партии"))
     
     bot.send_message(message.chat.id, 
-                     f"Привет, {message.from_user.first_name}! Выбери режим времени для игры в шашки или используй команды:\n\n"
+                     f"Привет, {message.from_user.first_name}! 🪙 Твой баланс: {user_coins} монет.\n\n"
+                     "Выбери режим времени для игры в шашки или используй команды:\n"
                      "🏆 /top — Список лидеров по монетам", 
                      reply_markup=markup)
 
 @bot.message_handler(func=lambda message: message.text == "⚡ Быстрая игра (15 мин)")
 def fast_game(message):
+    user_coins = get_coins(message.from_user.id)
     markup = types.InlineKeyboardMarkup()
-    markup.add(types.InlineKeyboardButton("🚀 Запустить (15 мин)", web_app=types.WebAppInfo(url=f"{WEB_APP_URL}?time=15")))
+    markup.add(types.InlineKeyboardButton("🚀 Запустить (15 мин)", web_app=types.WebAppInfo(url=f"{WEB_APP_URL}?time=15&coins={user_coins}")))
     bot.send_message(message.chat.id, "Кнопка для быстрого матча готова:", reply_markup=markup)
 
 @bot.message_handler(func=lambda message: message.text == "⏳ Долгая партия (45 мин)")
 def long_game(message):
+    user_coins = get_coins(message.from_user.id)
     markup = types.InlineKeyboardMarkup()
-    markup.add(types.InlineKeyboardButton("🧠 Запустить (45 мин)", web_app=types.WebAppInfo(url=f"{WEB_APP_URL}?time=45")))
+    markup.add(types.InlineKeyboardButton("🧠 Запустить (45 мин)", web_app=types.WebAppInfo(url=f"{WEB_APP_URL}?time=45&coins={user_coins}")))
     bot.send_message(message.chat.id, "Кнопка для вдумчивой долгой партии готова:", reply_markup=markup)
 
 @bot.message_handler(func=lambda message: message.text == "⚙️ Свое время партии")
@@ -55,8 +59,9 @@ def custom_time_process(message):
         if minutes < 1 or minutes > 180:
             bot.send_message(message.chat.id, "Пожалуйста, введи разумное время от 1 до 180 минут.")
             return
+        user_coins = get_coins(message.from_user.id)
         markup = types.InlineKeyboardMarkup()
-        markup.add(types.InlineKeyboardButton(f"🎮 Играть ({minutes} мин)", web_app=types.WebAppInfo(url=f"{WEB_APP_URL}?time={minutes}")))
+        markup.add(types.InlineKeyboardButton(f"🎮 Играть ({minutes} мин)", web_app=types.WebAppInfo(url=f"{WEB_APP_URL}?time={minutes}&coins={user_coins}")))
         bot.send_message(message.chat.id, f"Установлено время: {minutes} мин. Твоя ссылка:", reply_markup=markup)
     except ValueError:
         bot.send_message(message.chat.id, "Ошибка! Нужно отправить только целое число минут. Попробуй еще раз через меню.")
