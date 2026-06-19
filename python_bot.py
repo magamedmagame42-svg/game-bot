@@ -72,11 +72,26 @@ def top_leaderboard(message):
     if not top_players:
         bot.send_message(message.chat.id, "🏆 Таблица лидеров пока пуста.")
         return
-    text = "🏆 **ТОП-10 ИГРОКОВ ПО МОНЕТАМ:**\n\n"
+    
+    # Заголовок таблицы
+    text = "🏆 **ТАБЛИЦА ЛИДЕРОВ:**\n\n"
+    text += "`| №  | Имя          | Монеты  |`\n"
+    text += "`|----|--------------|---------|`\n"
+    
     for index, player in enumerate(top_players, 1):
         name, coins = player
-        medal = "🥇" if index == 1 else "🥈" if index == 2 else "🥉" if index == 3 else f"{index}."
-        text += f"{medal} {name} — {coins} 🪙\n"
+        
+        # Обрезаем слишком длинные имена до 12 символов, чтобы таблица не ломалась
+        if len(name) > 12:
+            name = name[:9] + "..."
+            
+        # Форматируем строки с фиксированной шириной колонок
+        # {:<2} - под номер (2 символа, выравнивание по левому краю)
+        # {:<12} - под имя (12 символов)
+        # {:<7} - под монеты (7 символов)
+        row = f"`| {index:<2} | {name:<12} | {coins:<7} |`"
+        text += row + "\n"
+        
     bot.send_message(message.chat.id, text, parse_mode="Markdown")
 
 @bot.message_handler(content_types=['web_app_data'])
