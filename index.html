@@ -3,14 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Премиум Шашки с Таймером</title>
+    <title>Премиум Онлайн Шашки</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.js"></script>
     <style>
         body {
             margin: 0; background: #161d22; color: white;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
             height: 100vh; font-family: 'Segoe UI', sans-serif; user-select: none;
+            overflow: hidden;
         }
+        
+        /* Экран ожидания соперника */
+        #matchmaking-screen {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: #161d22; z-index: 10; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; text-align: center;
+        }
+        .loader {
+            border: 4px solid rgba(255,255,255,0.1); border-top: 4px solid #f1c40f;
+            border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
         #top-bar {
             display: flex; justify-content: space-between; width: 90vw; max-width: 400px; margin-bottom: 5px;
         }
@@ -21,15 +37,16 @@
         }
         .info-panel { 
             background: rgba(0,0,0,0.5); padding: 8px 14px; border-radius: 10px; 
-            font-size: 14px; text-align: center; min-width: 80px; 
+            font-size: 13px; text-align: center; min-width: 80px; 
             box-shadow: inset 0 1px 3px rgba(255,255,255,0.1); 
         }
         .active-timer { background: #2e7d32 !important; animation: pulse-time 1s infinite alternate; }
         @keyframes pulse-time { from { opacity: 0.8; } to { opacity: 1; } }
         
         #status { font-size: 18px; margin-bottom: 15px; font-weight: bold; text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
+        #role-status { font-size: 14px; color: #94a3b8; margin-bottom: 5px; }
         
-        /* Профессиональная матовая доска */
+        /* Реалистичная игровая доска */
         .board-wrapper {
             display: grid; grid-template-columns: 20px 1fr 20px; grid-template-rows: 20px 1fr 20px;
             width: 92vw; height: 92vw; max-width: 400px; max-height: 400px;
@@ -47,7 +64,7 @@
         .dark { background-color: #b58863; }
         .light { background-color: #f0d9b5; }
         
-        /* Реалистичные шашки без картинок */
+        /* Реалистичные объемные шашки */
         .piece {
             width: 82%; height: 82%; border-radius: 50%; cursor: pointer; position: relative;
             transition: transform 0.2s, box-shadow 0.2s; z-index: 2;
@@ -75,14 +92,21 @@
 </head>
 <body>
 
+    <div id="matchmaking-screen">
+        <div class="loader"></div>
+        <h2 id="matchmaking-status">Подключение к арене...</h2>
+        <p style="color: #94a3b8; font-size: 14px;">Ищем достойного оппонента</p>
+    </div>
+
     <div id="top-bar">
-        <div class="info-panel" id="white-panel">Белые ⚪<br><span id="white-time">15:00</span></div>
+        <div class="info-panel" id="white-panel">Белые<br><span id="white-time">15:00</span></div>
         <div class="info-panel">Съедено<br>⚪: <span id="white-captured">0</span> | ⚫: <span id="black-captured">0</span></div>
-        <div class="info-panel" id="black-panel">Черные ⚫<br><span id="black-time">15:00</span></div>
+        <div class="info-panel" id="black-panel">Черные<br><span id="black-time">15:00</span></div>
     </div>
     
     <div id="coin-bar">🪙 Монеты: <span id="player-coins">0</span></div>
     
+    <div id="role-status">Ожидание начала...</div>
     <div id="status">Ход Белых</div>
 
     <div class="board-wrapper">
@@ -97,24 +121,32 @@
         const tg = window.Telegram.WebApp;
         tg.expand();
 
+        // Параметры из ссылки бота
         const urlParams = new URLSearchParams(window.location.search);
-        let gameMinutes = parseInt(urlParams.get('time')) || 15;
-        let startCoins = urlParams.get('coins') || '0';
+        const myUserId = urlParams.get('user_id');
+        const myName = urlParams.get('name') || 'Игрок';
+        const startCoins = urlParams.get('coins') || '0';
+        const gameMinutes = parseInt(urlParams.get('time')) || 15;
         
         document.getElementById('player-coins').innerText = startCoins;
         
+        // Переменные онлайн-сессии
+        let socket = io();
+        let myColor = null; // 'white' или 'black', определится сервером
+        let currentRoom = null;
+
         let turn = 'white';
         let selectedPiece = null;
         let whiteCaptured = 0;
         let blackCaptured = 0;
         let mustHitPieces = []; 
-        let gameActive = true;
+        let gameActive = false; // Игра начнется только когда найдется соперник
 
         let whiteTime = gameMinutes * 60;
         let blackTime = gameMinutes * 60;
         
+        // Генерация доски
         let boardState = Array(8).fill(null).map(() => Array(8).fill(null).map(() => ({type: '', isKing: false})));
-        
         for(let r=0; r<8; r++) {
             for(let c=0; c<8; c++) {
                 if((r+c)%2 === 1) {
@@ -124,17 +156,54 @@
             }
         }
 
-        setInterval(() => {
-            if (!gameActive) return;
-            if (turn === 'white') {
-                whiteTime--;
-                if(whiteTime <= 0) endGame('black', 'Время вышло! Победили Черные.');
-            } else {
-                blackTime--;
-                if(blackTime <= 0) endGame('white', 'Время вышло! Победили Белые.');
-            }
-            updateTimerDisplay();
-        }, 1000);
+        // --- ПОДКЛЮЧЕНИЕ К СЕТИ ---
+        socket.on('connect', () => {
+            document.getElementById('matchmaking-status').innerText = "Поиск соперника...";
+            // Отправляем бэкенду запрос на вход в игру
+            socket.emit('join_arena', { user_id: myUserId, name: myName });
+        });
+
+        socket.on('waiting', (data) => {
+            document.getElementById('matchmaking-status').innerText = data.message;
+        });
+
+        // Событие: Пара найдена, матч начинается!
+        socket.on('match_start', (data) => {
+            currentRoom = data.room_id;
+            myColor = data.color;
+            gameActive = true;
+            
+            // Скрываем экран загрузки
+            document.getElementById('matchmaking-screen').style.display = 'none';
+            
+            // Выводим информацию, кто твой оппонент
+            document.getElementById('role-status').innerText = `Ты играешь за ${myColor === 'white' ? 'Белых ⚪' : 'Черных ⚫'}. Соперник: ${data.opponent}`;
+            
+            drawBoard();
+            startTimerLogic();
+        });
+
+        // Событие: Оппонент сделал ход через интернет
+        socket.on('opponent_moved', (move) => {
+            // Применяем ход соперника на нашей доске
+            executeMove(move.fromR, move.fromC, move.toR, move.toC, move.isHit, move.enemyR, move.enemyC);
+        });
+
+
+        // --- ЛОГИКА ТАЙМЕРОВ ---
+        function startTimerLogic() {
+            setInterval(() => {
+                if (!gameActive) return;
+                if (turn === 'white') {
+                    whiteTime--;
+                    if(whiteTime <= 0) endGame('black', 'Время вышло! Победили Черные.');
+                } else {
+                    blackTime--;
+                    if(blackTime <= 0) endGame('white', 'Время вышло! Победили Белые.');
+                }
+                updateTimerDisplay();
+            }, 1000);
+        }
 
         function updateTimerDisplay() {
             const formatTime = (sec) => {
@@ -148,6 +217,7 @@
             document.getElementById('black-panel').className = `info-panel ${turn==='black'?'active-timer':''}`;
         }
 
+        // --- ИГРОВАЯ ЛОГИКА ШАШЕК ---
         function checkMustHit() {
             mustHitPieces = [];
             const currentType = turn === 'white' ? 'W' : 'B';
@@ -217,14 +287,24 @@
                         piece.addEventListener('click', (e) => {
                             e.stopPropagation();
                             if (!gameActive) return;
+                            
+                            // КРИТИЧЕСКАЯ ОНЛАЙН ПРОВЕРКА: Игрок может трогать только шашки своего цвета!
+                            if ((myColor === 'white' && cellData.type !== 'W') || (myColor === 'black' && cellData.type !== 'B')) {
+                                return;
+                            }
+                            // Проверка на твой ли сейчас ход
+                            if ((turn === 'white' && myColor !== 'white') || (turn === 'black' && myColor !== 'black')) {
+                                alert("Сейчас ход твоего соперника!");
+                                return;
+                            }
+
                             if (mustHitPieces.length > 0 && !isObligated) {
                                 alert("Обязательно нужно бить подсвеченную шашку!");
                                 return;
                             }
-                            if ((turn === 'white' && cellData.type === 'W') || (turn === 'black' && cellData.type === 'B')) {
-                                selectedPiece = { row: r, col: c };
-                                drawBoard();
-                            }
+                            
+                            selectedPiece = { row: r, col: c };
+                            drawBoard();
                         });
                         cell.appendChild(piece);
                     }
@@ -240,6 +320,7 @@
 
         function handleCellClick(r, c) {
             if (!selectedPiece || !gameActive) return;
+            if (turn !== myColor) return; // Нельзя ходить в чужой ход
             
             const fromR = selectedPiece.row;
             const fromC = selectedPiece.col;
@@ -249,6 +330,7 @@
             
             if (boardState[r][c].type !== '' || (r + c) % 2 === 0) return;
 
+            // Логика хода Дамки
             if (pData.isKing) {
                 if (Math.abs(rowDiff) === colDiff) {
                     let dirR = rowDiff / Math.abs(rowDiff);
@@ -263,12 +345,12 @@
                     }
 
                     if (enemies.length === 0 && mustHitPieces.length === 0) {
-                        movePiece(fromR, fromC, r, c);
+                        sendMoveToServer(fromR, fromC, r, c, false, null, null);
+                        executeMove(fromR, fromC, r, c, false);
                         endTurn();
                     } else if (enemies.length === 1 && boardState[enemies[0].r][enemies[0].c].type !== pData.type) {
-                        boardState[enemies[0].r][enemies[0].c] = {type: '', isKing: false};
-                        if (turn === 'white') blackCaptured++; else whiteCaptured++;
-                        movePiece(fromR, fromC, r, c);
+                        sendMoveToServer(fromR, fromC, r, c, true, enemies[0].r, enemies[0].c);
+                        executeMove(fromR, fromC, r, c, true, enemies[0].r, enemies[0].c);
                         
                         if (canCapture(r, c)) { selectedPiece = { row: r, col: c }; drawBoard(); }
                         else { checkGameOver(); endTurn(); }
@@ -279,19 +361,21 @@
 
             if (mustHitPieces.length > 0 && Math.abs(rowDiff) !== 2) return;
 
+            // Обычный тихий ход простой шашки
             if (mustHitPieces.length === 0 && ((turn === 'white' && rowDiff === -1 && colDiff === 1) || (turn === 'black' && rowDiff === 1 && colDiff === 1))) {
-                movePiece(fromR, fromC, r, c);
+                sendMoveToServer(fromR, fromC, r, c, false, null, null);
+                executeMove(fromR, fromC, r, c, false);
                 endTurn();
             }
+            // Взятие простой шашкой
             else if (Math.abs(rowDiff) === 2 && colDiff === 2) {
                 const midR = (fromR + r) / 2;
                 const midC = (fromC + c) / 2;
                 const enemyType = turn === 'white' ? 'B' : 'W';
                 
                 if (boardState[midR][midC].type === enemyType) {
-                    boardState[midR][midC] = {type: '', isKing: false};
-                    if (turn === 'white') blackCaptured++; else whiteCaptured++;
-                    movePiece(fromR, fromC, r, c);
+                    sendMoveToServer(fromR, fromC, r, c, true, midR, midC);
+                    executeMove(fromR, fromC, r, c, true, midR, midC);
                     
                     if (canCapture(r, c)) { selectedPiece = { row: r, col: c }; drawBoard(); }
                     else { checkGameOver(); endTurn(); }
@@ -299,12 +383,33 @@
             }
         }
 
-        function movePiece(fromR, fromC, r, c) {
+        // Отправка сделанного хода по сокетам на сервер
+        function sendMoveToServer(fromR, fromC, toR, toC, isHit, enemyR, enemyC) {
+            socket.emit('make_move', {
+                room_id: currentRoom,
+                move: { fromR, fromC, toR, toC, isHit, enemyR, enemyC }
+            });
+        }
+
+        // Локальное физическое выполнение хода на доске
+        function executeMove(fromR, fromC, r, c, isHit, enemyR, enemyC) {
+            if (isHit && enemyR !== null) {
+                boardState[enemyR][enemyC] = {type: '', isKing: false};
+                if (turn === 'white') blackCaptured++; else whiteCaptured++;
+            }
+
             boardState[r][c] = boardState[fromR][fromC];
             boardState[fromR][fromC] = {type: '', isKing: false};
             
+            // Превращение в дамку
             if (boardState[r][c].type === 'W' && r === 0) boardState[r][c].isKing = true;
             if (boardState[r][c].type === 'B' && r === 7) boardState[r][c].isKing = true;
+
+            if (!isHit || !canCapture(r, c)) {
+                endTurn();
+            } else {
+                drawBoard();
+            }
         }
 
         function endTurn() {
@@ -326,14 +431,18 @@
             if (b === 0) endGame('white', 'Белые съели все шашки!');
         }
 
-        function endGame(winner, msg) {
+        function endGame(winnerColor, msg) {
+            if (!gameActive) return;
             gameActive = false;
             alert(msg);
-            tg.sendData(JSON.stringify({ winner: winner }));
-            tg.close();
+            
+            // Отправляем на бэкенд отчет о конце игры, чтобы начислить монеты
+            if (myColor === winnerColor) {
+                socket.emit('game_ended', { room_id: currentRoom, winner: winnerColor });
+            }
+            
+            setTimeout(() => { tg.close(); }, 1000);
         }
-
-        drawBoard();
     </script>
 </body>
 </html>
