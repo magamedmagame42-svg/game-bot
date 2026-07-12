@@ -121,7 +121,6 @@
         const tg = window.Telegram.WebApp;
         tg.expand();
 
-        // Параметры из ссылки бота
         const urlParams = new URLSearchParams(window.location.search);
         const myUserId = urlParams.get('user_id');
         const myName = urlParams.get('name') || 'Игрок';
@@ -130,9 +129,8 @@
         
         document.getElementById('player-coins').innerText = startCoins;
         
-        // Переменные онлайн-сессии
         let socket = io();
-        let myColor = null; // 'white' или 'black', определится сервером
+        let myColor = null; 
         let currentRoom = null;
 
         let turn = 'white';
@@ -140,12 +138,12 @@
         let whiteCaptured = 0;
         let blackCaptured = 0;
         let mustHitPieces = []; 
-        let gameActive = false; // Игра начнется только когда найдется соперник
+        let gameActive = false;
 
         let whiteTime = gameMinutes * 60;
         let blackTime = gameMinutes * 60;
         
-        // Генерация доски
+        // Генерация локальной доски
         let boardState = Array(8).fill(null).map(() => Array(8).fill(null).map(() => ({type: '', isKing: false})));
         for(let r=0; r<8; r++) {
             for(let c=0; c<8; c++) {
@@ -156,10 +154,8 @@
             }
         }
 
-        // --- ПОДКЛЮЧЕНИЕ К СЕТИ ---
         socket.on('connect', () => {
             document.getElementById('matchmaking-status').innerText = "Поиск соперника...";
-            // Отправляем бэкенду запрос на вход в игру
             socket.emit('join_arena', { user_id: myUserId, name: myName });
         });
 
@@ -167,30 +163,23 @@
             document.getElementById('matchmaking-status').innerText = data.message;
         });
 
-        // Событие: Пара найдена, матч начинается!
         socket.on('match_start', (data) => {
             currentRoom = data.room_id;
             myColor = data.color;
             gameActive = true;
             
-            // Скрываем экран загрузки
             document.getElementById('matchmaking-screen').style.display = 'none';
-            
-            // Выводим информацию, кто твой оппонент
-            document.getElementById('role-status').innerText = `Ты играешь за ${myColor === 'white' ? 'Белых ⚪' : 'Черных ⚫'}. Соперник: ${data.opponent}`;
+            document.getElementById('role-status').innerText = `Ты: ${myColor === 'white' ? 'Белые ⚪' : 'Черные ⚫'}. Соперник: ${data.opponent}`;
             
             drawBoard();
             startTimerLogic();
         });
 
-        // Событие: Оппонент сделал ход через интернет
+        // Сервер подтвердил ход и прислал его результат
         socket.on('opponent_moved', (move) => {
-            // Применяем ход соперника на нашей доске
-            executeMove(move.fromR, move.fromC, move.toR, move.toC, move.isHit, move.enemyR, move.enemyC);
+            executeMove(move.fromR, move.fromC, move.toR, move.toC, move.isHit, move.enemyR, move.enemyC, move.nextTurn);
         });
 
-
-        // --- ЛОГИКА ТАЙМЕРОВ ---
         function startTimerLogic() {
             setInterval(() => {
                 if (!gameActive) return;
@@ -217,7 +206,6 @@
             document.getElementById('black-panel').className = `info-panel ${turn==='black'?'active-timer':''}`;
         }
 
-        // --- ИГРОВАЯ ЛОГИКА ШАШЕК ---
         function checkMustHit() {
             mustHitPieces = [];
             const currentType = turn === 'white' ? 'W' : 'B';
@@ -288,18 +276,13 @@
                             e.stopPropagation();
                             if (!gameActive) return;
                             
-                            // КРИТИЧЕСКАЯ ОНЛАЙН ПРОВЕРКА: Игрок может трогать только шашки своего цвета!
                             if ((myColor === 'white' && cellData.type !== 'W') || (myColor === 'black' && cellData.type !== 'B')) {
                                 return;
                             }
-                            // Проверка на твой ли сейчас ход
                             if ((turn === 'white' && myColor !== 'white') || (turn === 'black' && myColor !== 'black')) {
-                                alert("Сейчас ход твоего соперника!");
                                 return;
                             }
-
                             if (mustHitPieces.length > 0 && !isObligated) {
-                                alert("Обязательно нужно бить подсвеченную шашку!");
                                 return;
                             }
                             
@@ -320,7 +303,7 @@
 
         function handleCellClick(r, c) {
             if (!selectedPiece || !gameActive) return;
-            if (turn !== myColor) return; // Нельзя ходить в чужой ход
+            if (turn !== myColor) return;
             
             const fromR = selectedPiece.row;
             const fromC = selectedPiece.col;
@@ -330,7 +313,7 @@
             
             if (boardState[r][c].type !== '' || (r + c) % 2 === 0) return;
 
-            // Логика хода Дамки
+            // Логика Дамки
             if (pData.isKing) {
                 if (Math.abs(rowDiff) === colDiff) {
                     let dirR = rowDiff / Math.abs(rowDiff);
@@ -345,15 +328,9 @@
                     }
 
                     if (enemies.length === 0 && mustHitPieces.length === 0) {
-                        sendMoveToServer(fromR, fromC, r, c, false, null, null);
-                        executeMove(fromR, fromC, r, c, false);
-                        endTurn();
+                        sendMoveToServer(fromR, fromC, r, c);
                     } else if (enemies.length === 1 && boardState[enemies[0].r][enemies[0].c].type !== pData.type) {
-                        sendMoveToServer(fromR, fromC, r, c, true, enemies[0].r, enemies[0].c);
-                        executeMove(fromR, fromC, r, c, true, enemies[0].r, enemies[0].c);
-                        
-                        if (canCapture(r, c)) { selectedPiece = { row: r, col: c }; drawBoard(); }
-                        else { checkGameOver(); endTurn(); }
+                        sendMoveToServer(fromR, fromC, r, c);
                     }
                 }
                 return;
@@ -361,11 +338,9 @@
 
             if (mustHitPieces.length > 0 && Math.abs(rowDiff) !== 2) return;
 
-            // Обычный тихий ход простой шашки
+            // Обычный ход простой шашки
             if (mustHitPieces.length === 0 && ((turn === 'white' && rowDiff === -1 && colDiff === 1) || (turn === 'black' && rowDiff === 1 && colDiff === 1))) {
-                sendMoveToServer(fromR, fromC, r, c, false, null, null);
-                executeMove(fromR, fromC, r, c, false);
-                endTurn();
+                sendMoveToServer(fromR, fromC, r, c);
             }
             // Взятие простой шашкой
             else if (Math.abs(rowDiff) === 2 && colDiff === 2) {
@@ -374,26 +349,22 @@
                 const enemyType = turn === 'white' ? 'B' : 'W';
                 
                 if (boardState[midR][midC].type === enemyType) {
-                    sendMoveToServer(fromR, fromC, r, c, true, midR, midC);
-                    executeMove(fromR, fromC, r, c, true, midR, midC);
-                    
-                    if (canCapture(r, c)) { selectedPiece = { row: r, col: c }; drawBoard(); }
-                    else { checkGameOver(); endTurn(); }
+                    sendMoveToServer(fromR, fromC, r, c);
                 }
             }
         }
 
-        // Отправка сделанного хода по сокетам на сервер
-        function sendMoveToServer(fromR, fromC, toR, toC, isHit, enemyR, enemyC) {
+        // Отправка запроса на ход к серверу
+        function sendMoveToServer(fromR, fromC, toR, toC) {
             socket.emit('make_move', {
                 room_id: currentRoom,
-                move: { fromR, fromC, toR, toC, isHit, enemyR, enemyC }
+                move: { fromR, fromC, toR, toC }
             });
         }
 
-        // Локальное физическое выполнение хода на доске
-        function executeMove(fromR, fromC, r, c, isHit, enemyR, enemyC) {
-            if (isHit && enemyR !== null) {
+        // Физическое перемещение на доске после подтверждения сервером
+        function executeMove(fromR, fromC, r, c, isHit, enemyR, enemyC, nextTurn) {
+            if (isHit && enemyR !== null && enemyC !== null) {
                 boardState[enemyR][enemyC] = {type: '', isKing: false};
                 if (turn === 'white') blackCaptured++; else whiteCaptured++;
             }
@@ -401,22 +372,16 @@
             boardState[r][c] = boardState[fromR][fromC];
             boardState[fromR][fromC] = {type: '', isKing: false};
             
-            // Превращение в дамку
+            // Дамка
             if (boardState[r][c].type === 'W' && r === 0) boardState[r][c].isKing = true;
             if (boardState[r][c].type === 'B' && r === 7) boardState[r][c].isKing = true;
 
-            if (!isHit || !canCapture(r, c)) {
-                endTurn();
-            } else {
-                drawBoard();
-            }
-        }
-
-        function endTurn() {
             selectedPiece = null;
-            turn = turn === 'white' ? 'black' : 'white';
+            turn = nextTurn;
             document.getElementById('status').innerText = turn === 'white' ? 'Ход Белых' : 'Ход Черных';
+            
             drawBoard();
+            checkGameOver();
         }
 
         function checkGameOver() {
@@ -436,12 +401,10 @@
             gameActive = false;
             alert(msg);
             
-            // Отправляем на бэкенд отчет о конце игры, чтобы начислить монеты
             if (myColor === winnerColor) {
                 socket.emit('game_ended', { room_id: currentRoom, winner: winnerColor });
             }
-            
-            setTimeout(() => { tg.close(); }, 1000);
+            setTimeout(() => { tg.close(); }, 1500);
         }
     </script>
 </body>
