@@ -1,68 +1,83 @@
-EMPTY_BLACK = "⬛"
-EMPTY_WHITE = "⬜"
-WHITE_PIECE = "⚪"
-BLACK_PIECE = "🔴"
-
 def create_board():
-    """Создает начальную доску 8х8"""
+    """Создает начальную доску 8х8 (как на фронтенде)"""
     board = []
-    for row in range(8):
+    for r in range(8):
         board_row = []
-        for col in range(8):
-            if (row + col) % 2 == 1:
-                if row < 3:
-                    board_row.append(BLACK_PIECE)
-                elif row > 4:
-                    board_row.append(WHITE_PIECE)
+        for c in range(8):
+            if (r + c) % 2 == 1:
+                if r < 3:
+                    board_row.append({'type': 'B', 'isKing': False})
+                elif r > 4:
+                    board_row.append({'type': 'W', 'isKing': False})
                 else:
-                    board_row.append(EMPTY_BLACK)
+                    board_row.append({'type': '', 'isKing': False})
             else:
-                board_row.append(EMPTY_WHITE)
+                board_row.append({'type': '', 'isKing': False})
         board.append(board_row)
     return board
 
-def is_valid_move(board, from_row, from_col, to_row, to_col, turn):
-    """
-    Проверяет ход. 
-    Возвращает (True, True), если это прыжок со взятием фигуры.
-    Возвращает (True, False), если это обычный тихий ход.
-    Возвращает (False, False), если ход невозможен.
-    """
-    piece = board[from_row][from_col]
-    target = board[to_row][to_col]
-    
-    # Проверка цвета
-    if turn == 'white' and piece != WHITE_PIECE: return False, False
-    if turn == 'black' and piece != BLACK_PIECE: return False, False
-    if target != EMPTY_BLACK: return False, False
-    
-    row_diff = to_row - from_row
-    col_diff = abs(to_col - from_col)
-    
-    # 1. Проверка на обычный ход (на 1 клетку по диагонали вперед)
-    if col_diff == 1:
-        if turn == 'white' and row_diff == -1: return True, False
-        if turn == 'black' and row_diff == 1: return True, False
-        
-    # 2. Проверка на взятие (прыжок на 2 клетки через фигуру соперника)
-    if col_diff == 2 and abs(row_diff) == 2:
-        mid_row = (from_row + to_row) // 2
-        mid_col = (from_col + to_col) // 2
-        mid_piece = board[mid_row][mid_col]
-        
-        # Белые бьют красных, красные бьют белых (в любую сторону)
-        if turn == 'white' and mid_piece == BLACK_PIECE:
-            return True, True
-        if turn == 'black' and mid_piece == WHITE_PIECE:
-            return True, True
-            
-    return False, False
+def get_must_hit_pieces(board, turn):
+    """Находит все шашки текущего игрока, которые ОБЯЗАНЫ бить"""
+    must_hit = []
+    current_type = 'W' if turn == 'white' else 'B'
+    for r in range(8):
+        for c in range(8):
+            if board[r][c]['type'] == current_type:
+                if can_capture(board, r, c):
+                    must_hit.append({'r': r, 'c': c})
+    return must_hit
 
-def check_win(board):
-    """Проверяет, остались ли фигуры"""
-    white_count = sum(row.count(WHITE_PIECE) for row in board)
-    black_count = sum(row.count(BLACK_PIECE) for row in board)
+def can_capture(board, r, c):
+    """Проверяет, может ли конкретная шашка совершить взятие"""
+    piece = board[r][c]
+    enemy_type = 'B' if piece['type'] == 'W' else 'W'
+    dirs = [[-1, -1], [-1, 1], [1, -1], [1, 1]]
+
+    # Логика для простой шашки (дамки проверяются иначе, это базовый вариант)
+    for d in dirs:
+        mid_r, mid_c = r + d[0], c + d[1]
+        end_r, end_c = r + d[0] * 2, c + d[1] * 2
+        if 0 <= end_r < 8 and 0 <= end_c < 8:
+            if board[mid_r][mid_c]['type'] == enemy_type and board[end_r][end_c]['type'] == '':
+                return True
+    return False
+
+def check_move_validity(board, turn, from_r, from_c, to_r, to_c):
+    """
+    Серверная валидация хода.
+    Возвращает (is_valid, is_hit, enemy_r, enemy_c)
+    """
+    if from_r < 0 or from_r >= 8 or from_c < 0 or from_c >= 8: return False, False, None, None
+    if to_r < 0 or to_r >= 8 or to_c < 0 or to_c >= 8: return False, False, None, None
     
-    if white_count == 0: return 'black'
-    if black_count == 0: return 'white'
-    return None
+    piece = board[from_r][from_col := from_c]
+    target = board[to_r][to_c]
+    
+    current_type = 'W' if turn == 'white' else 'B'
+    if piece['type'] != current_type or target['type'] != '': return False, False, None, None
+
+    row_diff = to_r - from_r
+    col_diff = abs(to_c - from_c)
+    
+    must_hit = get_must_hit_pieces(board, turn)
+    
+    # Если есть шашки, обязанные бить, а текущий ход — не прыжок
+    if must_hit and col_diff != 2:
+        return False, False, None, None
+    if must_hit and not any(p['r'] == from_r and p['c'] == from_c for p in must_hit):
+        return False, False, None, None
+
+    # Обычный ход
+    if col_diff == 1 and not must_hit:
+        if turn == 'white' and row_diff == -1: return True, False, None, None
+        if turn == 'black' and row_diff == 1: return True, False, None, None
+
+    # Ход со взятием
+    if col_diff == 2 and abs(row_diff) == 2:
+        mid_r = (from_r + to_r) // 2
+        mid_c = (from_c + to_c) // 2
+        enemy_type = 'B' if turn == 'white' else 'W'
+        if board[mid_r][mid_c]['type'] == enemy_type:
+            return True, True, mid_r, mid_c
+
+    return False, False, None, None
