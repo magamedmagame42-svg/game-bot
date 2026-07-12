@@ -7,6 +7,9 @@ from flask import Flask, request, render_template_string
 from flask_socketio import SocketIO, emit, join_room, leave_room
 from database.db_manager import init_db, add_user, add_coins, get_top_users, get_coins
 
+
+from games.checkers_logic import create_board, check_move_validity, can_capture
+
 # Инициализация бота и базы данных
 bot = telebot.TeleBot(config.TOKEN)
 init_db()
