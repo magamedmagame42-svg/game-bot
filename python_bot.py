@@ -7,7 +7,7 @@ from flask import Flask, request, render_template_string
 from flask_socketio import SocketIO, emit, join_room, leave_room
 from database.db_manager import init_db, add_user, add_coins, get_top_users, get_coins
 
-
+# Импортируем серверную валидацию шашек из нашей папки games
 from games.checkers_logic import create_board, check_move_validity, can_capture
 
 # Инициализация бота и базы данных
@@ -86,12 +86,12 @@ def top_leaderboard(message):
     bot.send_message(message.chat.id, text, parse_mode="Markdown")
 
 
-# --- ЛОГИКА ВЕБ-СОКЕТОВ (ОНЛАЙН ИГРА) ---
+# --- ЛОГИКА ВЕБ-СОКЕТОВ (ОНЛАЙН ИГРА С СЕРВЕРНОЙ ВАЛИДАЦИЕЙ) ---
 
 @socketio.on('join_arena')
 def on_join_arena(data):
     """Игрок открыл WebApp и готов к подбору игры"""
-    global MATCHMAKING_QUEUE # Теперь объявление строго в самом начале функции!
+    global MATCHMAKING_QUEUE
     
     user_id = data.get('user_id')
     user_name = data.get('name')
@@ -105,10 +105,14 @@ def on_join_arena(data):
         opponent = MATCHMAKING_QUEUE.pop(0)
         room_id = f"room_{opponent['user_id']}_{user_id}"
         
+        # Генерируем чистую доску на стороне сервера
+        server_board = create_board()
+        
         GAME_ROOMS[room_id] = {
             'white': {'id': opponent['user_id'], 'name': opponent['name'], 'sid': opponent['sid']},
             'black': {'id': user_id, 'name': user_name, 'sid': sid},
-            'board': None
+            'board': server_board,
+            'turn': 'white'  # Начинают всегда белые
         }
         
         join_room(room_id)
@@ -122,21 +126,69 @@ def on_join_arena(data):
         MATCHMAKING_QUEUE = [x for x in MATCHMAKING_QUEUE if x['user_id'] != user_id]
         
         MATCHMAKING_QUEUE.append({'user_id': user_id, 'name': user_name, 'sid': sid})
-        join_room(f"waiting_{user_id}")
         emit('waiting', {'message': 'Поиск соперника...'})
 
 @socketio.on('make_move')
 def on_make_move(data):
-    """Один из игроков сделал ход. Пересылаем его оппоненту"""
+    """Серверная проверка и пересылка хода"""
     room_id = data.get('room_id')
-    move_data = data.get('move')
+    move = data.get('move')  # {fromR, fromC, toR, toC}
     
-    if room_id in GAME_ROOMS:
-        emit('opponent_moved', move_data, room=room_id, include_self=False)
+    if room_id not in GAME_ROOMS:
+        return
+        
+    room = GAME_ROOMS[room_id]
+    board = room['board']
+    current_turn = room['turn']
+    
+    # 1. Безопасность: Проверяем, что ходит игрок, чья сейчас очередь
+    sender_sid = request.sid
+    expected_sid = room['white']['sid'] if current_turn == 'white' else room['black']['sid']
+    if sender_sid != expected_sid:
+        return  # Не его ход! Чит-запрос отклонен
+
+    from_r, from_c = move['fromR'], move['fromC']
+    to_r, to_c = move['toR'], move['toC']
+
+    # 2. Безопасность: Проверяем ход по правилам шашек на сервере
+    is_valid, is_hit, enemy_r, enemy_c = check_move_validity(board, current_turn, from_r, from_c, to_r, to_c)
+
+    if is_valid:
+        # Переносим фигуру на сервере
+        piece = board[from_r][from_c]
+        board[to_r][to_c] = piece
+        board[from_r][from_c] = {'type': '', 'isKing': False}
+        
+        # Если было взятие, удаляем побитую шашку
+        if is_hit and enemy_r is not None:
+            board[enemy_r][enemy_c] = {'type': '', 'isKing': False}
+
+        # Превращение в дамку на сервере
+        if board[to_r][to_c]['type'] == 'W' and to_r == 0:
+            board[to_r][to_c]['isKing'] = True
+        if board[to_r][to_c]['type'] == 'B' and to_r == 7:
+            board[to_r][to_c]['isKing'] = True
+
+        # Проверяем, может ли эта же фигура бить дальше (мульти-взятие)
+        if is_hit and can_capture(board, to_r, to_c):
+            # Оставляем ход за тем же игроком
+            pass
+        else:
+            # Меняем ход на оппонента
+            room['turn'] = 'black' if current_turn == 'white' else 'white'
+
+        # Отправляем подтвержденный и чистый ход обоим клиентам
+        verified_move_payload = {
+            'fromR': from_r, 'fromC': from_c,
+            'toR': to_r, 'toC': to_c,
+            'isHit': is_hit, 'enemyR': enemy_r, 'enemyC': enemy_c,
+            'nextTurn': room['turn']
+        }
+        emit('opponent_moved', verified_move_payload, room=room_id)
 
 @socketio.on('game_ended')
 def on_game_ended(data):
-    """Игра завершилась на клиенте"""
+    """Игра завершилась"""
     room_id = data.get('room_id')
     winner_color = data.get('winner')
     
